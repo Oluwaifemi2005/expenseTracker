@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from './constants/categories'
-import { THEME_PALETTES, CURRENCY_CONFIG, CURRENCY_SYMBOLS } from './constants/theme'
+import { THEME_PALETTES, CURRENCY_CONFIG } from './constants/theme'
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from './api/transactionsApi'
 import { formatCurrency, formatTxDate } from './utils/formatters'
 import { calculateTotals } from './utils/finance'
 import DeleteConfirmModal from './components/modals/DeleteConfirmModal'
 import AddTransactionModal from './components/modals/AddTransactionModal'
+import EditTransactionModal from './components/modals/EditTransactionModal'
 
 
 const Layout = () => {
@@ -217,7 +217,6 @@ const Layout = () => {
     };
 
     const headerInfo = getHeaderInfo();
-    const activeEditCategories = editingTransaction && editingTransaction.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
     return (
         <div className="dashboard-layout">
@@ -449,150 +448,16 @@ const Layout = () => {
             {/* ==========================================================================
                 Global Edit Transaction Modal (Available on all pages)
                 ========================================================================== */}
-            {editingTransaction && (
-                <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
-                    <div className="modal-card">
-                        <div className="modal-header">
-                            <div>
-                                <h2 id="edit-modal-title">Edit Transaction</h2>
-                                <p className="modal-subtitle">Update transaction details and category.</p>
-                            </div>
-                            <button
-                                type="button"
-                                className="modal-close-btn"
-                                onClick={() => setEditingTransaction(null)}
-                                aria-label="Close modal"
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        {editErrorMessage && (
-                            <div className="error-banner" role="alert">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <line x1="12" y1="8" x2="12" y2="12" />
-                                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                                </svg>
-                                <span>{editErrorMessage}</span>
-                            </div>
-                        )}
-
-                        <form onSubmit={handleUpdateTransaction} className="transaction-form">
-                            <div className="form-field">
-                                <label htmlFor="edit-description" className="form-label">Description</label>
-                                <input
-                                    id="edit-description"
-                                    className="form-input"
-                                    value={editingTransaction.description}
-                                    type="text"
-                                    required
-                                    onChange={(e) => setEditingTransaction({
-                                        ...editingTransaction,
-                                        description: e.target.value
-                                    })}
-                                />
-                            </div>
-
-                            <div className="form-field">
-                                <label htmlFor="edit-amount" className="form-label">Amount</label>
-                                <div className="input-container">
-                                    <span className="currency-symbol-addon">{CURRENCY_SYMBOLS[currency] || '₦'}</span>
-                                    <input
-                                        id="edit-amount"
-                                        className="form-input has-addon"
-                                        value={editingTransaction.amount}
-                                        type="number"
-                                        step="any"
-                                        min="0.01"
-                                        required
-                                        onChange={(e) => setEditingTransaction({
-                                            ...editingTransaction,
-                                            amount: e.target.value
-                                        })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-field">
-                                <label className="form-label">Transaction Type</label>
-                                <div className="type-segmented-control" role="group" aria-label="Edit Type Selection">
-                                    <button
-                                        type="button"
-                                        className={`segmented-btn ${editingTransaction.type === "expense" ? "active expense" : ""}`}
-                                        onClick={() => {
-                                            const defaultCat = EXPENSE_CATEGORIES.includes(editingTransaction.category) ? editingTransaction.category : "Food & Dining";
-                                            setEditingTransaction({
-                                                ...editingTransaction,
-                                                type: "expense",
-                                                category: defaultCat
-                                            });
-                                        }}
-                                    >
-                                        Expense
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`segmented-btn ${editingTransaction.type === "income" ? "active income" : ""}`}
-                                        onClick={() => {
-                                            const defaultCat = INCOME_CATEGORIES.includes(editingTransaction.category) ? editingTransaction.category : "Salary";
-                                            setEditingTransaction({
-                                                ...editingTransaction,
-                                                type: "income",
-                                                category: defaultCat
-                                            });
-                                        }}
-                                    >
-                                        Income
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="form-field">
-                                <label htmlFor="edit-category" className="form-label">Category</label>
-                                <select
-                                    id="edit-category"
-                                    className="form-select"
-                                    value={editingTransaction.category}
-                                    onChange={(e) => setEditingTransaction({
-                                        ...editingTransaction,
-                                        category: e.target.value
-                                    })}
-                                >
-                                    {activeEditCategories.map((cat) => (
-                                        <option key={cat} value={cat}>{cat}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="modal-actions">
-                                <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    onClick={() => setEditingTransaction(null)}
-                                    disabled={isUpdating}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="submit-btn modal-submit"
-                                    disabled={isUpdating}
-                                >
-                                    {isUpdating ? (
-                                        <>
-                                            <span className="spinner" aria-hidden="true"></span>
-                                            <span>Saving...</span>
-                                        </>
-                                    ) : (
-                                        <span>Save Changes</span>
-                                    )}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <EditTransactionModal
+                isOpen={Boolean(editingTransaction)}
+                transaction={editingTransaction}
+                setTransaction={setEditingTransaction}
+                onClose={() => setEditingTransaction(null)}
+                onSubmit={handleUpdateTransaction}
+                isUpdating={isUpdating}
+                errorMessage={editErrorMessage}
+                currency={currency}
+            />
 
             {/* ==========================================================================
                 Global Delete Confirmation Dialog
