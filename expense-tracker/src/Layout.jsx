@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from './constants/categories'
 import { THEME_PALETTES, CURRENCY_CONFIG, CURRENCY_SYMBOLS } from './constants/theme'
+import { API_BASE_URL } from './constants/api'
 
 
 const Layout = () => {
@@ -40,7 +41,7 @@ const Layout = () => {
 
     // Fetch transactions on mount
     const fetchTransactions = () => {
-        axios.get("http://localhost:5000/api/transactions")
+        axios.get(`${API_BASE_URL}/transactions`)
             .then((response) => {
                 setTransactions(response.data);
                 setApiStatus("Connected to Express API!");
@@ -145,7 +146,7 @@ const Layout = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await axios.post("http://localhost:5000/api/transactions", {
+            const response = await axios.post(`${API_BASE_URL}/transactions`, {
                 ...txData,
                 amount: Number(txData.amount)
             });
@@ -186,7 +187,7 @@ const Layout = () => {
 
         try {
             const response = await axios.put(
-                `http://localhost:5000/api/transactions/${editingTransaction._id}`,
+                `${API_BASE_URL}/transactions/${editingTransaction._id}`,
                 {
                     description: editingTransaction.description,
                     amount: Number(editingTransaction.amount),
@@ -214,7 +215,7 @@ const Layout = () => {
         setIsDeleting(true);
 
         try {
-            await axios.delete(`http://localhost:5000/api/transactions/${transactionToDelete._id}`);
+            await axios.delete(`${API_BASE_URL}/transactions/${transactionToDelete._id}`);
             setTransactions((prev) => prev.filter((item) => item._id !== transactionToDelete._id));
             setTransactionToDelete(null);
         } catch (error) {

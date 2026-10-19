@@ -153,7 +153,9 @@ app.use((err, req, res, next) => {
 });
 
 
-mongoose.connect(process.env.MONGODB_URI)
+const mongoUri = (process.env.MONGODB_URI || "").trim();
+
+mongoose.connect(mongoUri)
     .then(() => {
         console.log("Connected to MongoDB Atlas!");
 

@@ -1,23 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-
-const CATEGORY_COLORS = {
-    'Food & Dining': '#10b981',
-    'Transportation': '#f59e0b',
-    'Housing & Rent': '#0284c7',
-    'Utilities': '#6366f1',
-    'Entertainment': '#ec4899',
-    'Healthcare': '#ef4444',
-    'Shopping': '#8b5cf6',
-    'Education': '#14b8a6',
-    'Personal Care': '#d97706',
-    'Salary': '#10b981',
-    'Freelance': '#0ea5e9',
-    'Business': '#6366f1',
-    'Investments': '#8b5cf6',
-    'Gifts': '#f43f5e',
-    'Other': '#64748b'
-};
+import { CATEGORY_COLORS } from '../constants/categories'
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

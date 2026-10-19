@@ -1,26 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../constants/categories'
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, CATEGORY_COLORS } from '../constants/categories'
 
 const ALL_CATEGORIES = Array.from(new Set([...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES]));
-
-const CATEGORY_COLORS = {
-    'Food & Dining': '#f59e0b',
-    'Transportation': '#3b82f6',
-    'Housing & Rent': '#8b5cf6',
-    'Utilities': '#06b6d4',
-    'Entertainment': '#ec4899',
-    'Healthcare': '#ef4444',
-    'Shopping': '#10b981',
-    'Education': '#6366f1',
-    'Personal Care': '#14b8a6',
-    'Salary': '#10b981',
-    'Freelance': '#0ea5e9',
-    'Business': '#6366f1',
-    'Investments': '#8b5cf6',
-    'Gifts': '#f43f5e',
-    'Other': '#64748b'
-};
 
 const TransactionsView = () => {
     const {
