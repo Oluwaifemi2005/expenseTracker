@@ -4,6 +4,7 @@ import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from './constants/categories'
 import { THEME_PALETTES, CURRENCY_CONFIG, CURRENCY_SYMBOLS } from './constants/theme'
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from './api/transactionsApi'
 import { formatCurrency, formatTxDate } from './utils/formatters'
+import { calculateTotals } from './utils/finance'
 
 
 const Layout = () => {
@@ -94,12 +95,7 @@ const Layout = () => {
     }
 
     // Financial Calculations
-    const income = transactions.filter((t) => t.type === "income");
-    const expense = transactions.filter((t) => t.type === "expense");
-
-    const totalIncome = income.reduce((acc, curr) => acc + curr.amount, 0);
-    const totalExpense = expense.reduce((acc, curr) => acc + curr.amount, 0);
-    const balance = totalIncome - totalExpense;
+    const { income, expense, totalIncome, totalExpense, balance } = calculateTotals(transactions);
 
     // Currency Formatter bound to the active user currency preference
     const formatCurrencyDisplay = (val) => formatCurrency(val, currency);
