@@ -6,6 +6,7 @@ import { getTransactions, createTransaction, updateTransaction, deleteTransactio
 import { formatCurrency, formatTxDate } from './utils/formatters'
 import { calculateTotals } from './utils/finance'
 import DeleteConfirmModal from './components/modals/DeleteConfirmModal'
+import AddTransactionModal from './components/modals/AddTransactionModal'
 
 
 const Layout = () => {
@@ -217,7 +218,6 @@ const Layout = () => {
 
     const headerInfo = getHeaderInfo();
     const activeEditCategories = editingTransaction && editingTransaction.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-    const activeAddCategories = addFormState.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
     return (
         <div className="dashboard-layout">
@@ -436,133 +436,15 @@ const Layout = () => {
             {/* ==========================================================================
                 Global Add Transaction Modal (Triggered from Cazura Header)
                 ========================================================================== */}
-            {isAddModalOpen && (
-                <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="add-modal-title">
-                    <div className="modal-card">
-                        <div className="modal-header">
-                            <div>
-                                <h2 id="add-modal-title">Add New Transaction</h2>
-                                <p className="modal-subtitle">Log an inflow or outflow to your records.</p>
-                            </div>
-                            <button
-                                type="button"
-                                className="modal-close-btn"
-                                onClick={() => setIsAddModalOpen(false)}
-                                aria-label="Close modal"
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleAddModalSubmit} className="transaction-form">
-                            <div className="form-field">
-                                <label htmlFor="modal-description" className="form-label">Description</label>
-                                <input
-                                    id="modal-description"
-                                    className="form-input"
-                                    value={addFormState.description}
-                                    type="text"
-                                    placeholder="e.g. Salary, Groceries, Rent"
-                                    required
-                                    onChange={(e) => setAddFormState({
-                                        ...addFormState,
-                                        description: e.target.value
-                                    })}
-                                />
-                            </div>
-
-                            <div className="form-field">
-                                <label htmlFor="modal-amount" className="form-label">Amount</label>
-                                <div className="input-container">
-                                    <span className="currency-symbol-addon">{CURRENCY_SYMBOLS[currency] || '₦'}</span>
-                                    <input
-                                        id="modal-amount"
-                                        className="form-input has-addon"
-                                        value={addFormState.amount}
-                                        type="number"
-                                        step="any"
-                                        min="0.01"
-                                        placeholder="0.00"
-                                        required
-                                        onChange={(e) => setAddFormState({
-                                            ...addFormState,
-                                            amount: e.target.value
-                                        })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-field">
-                                <label className="form-label">Transaction Type</label>
-                                <div className="type-segmented-control" role="group" aria-label="Add Type Selection">
-                                    <button
-                                        type="button"
-                                        className={`segmented-btn ${addFormState.type === "expense" ? "active expense" : ""}`}
-                                        onClick={() => {
-                                            const defaultCat = EXPENSE_CATEGORIES.includes(addFormState.category) ? addFormState.category : "Food & Dining";
-                                            setAddFormState({ ...addFormState, type: "expense", category: defaultCat });
-                                        }}
-                                    >
-                                        Expense
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`segmented-btn ${addFormState.type === "income" ? "active income" : ""}`}
-                                        onClick={() => {
-                                            const defaultCat = INCOME_CATEGORIES.includes(addFormState.category) ? addFormState.category : "Salary";
-                                            setAddFormState({ ...addFormState, type: "income", category: defaultCat });
-                                        }}
-                                    >
-                                        Income
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="form-field">
-                                <label htmlFor="modal-category" className="form-label">Category</label>
-                                <select
-                                    id="modal-category"
-                                    className="form-select"
-                                    value={addFormState.category}
-                                    onChange={(e) => setAddFormState({
-                                        ...addFormState,
-                                        category: e.target.value
-                                    })}
-                                >
-                                    {activeAddCategories.map((cat) => (
-                                        <option key={cat} value={cat}>{cat}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="modal-actions">
-                                <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    onClick={() => setIsAddModalOpen(false)}
-                                    disabled={isSubmitting}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="submit-btn modal-submit"
-                                    disabled={isSubmitting}
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <span className="spinner" aria-hidden="true"></span>
-                                            <span>Adding...</span>
-                                        </>
-                                    ) : (
-                                        <span>Add Transaction</span>
-                                    )}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <AddTransactionModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                formState={addFormState}
+                setFormState={setAddFormState}
+                onSubmit={handleAddModalSubmit}
+                isSubmitting={isSubmitting}
+                currency={currency}
+            />
 
             {/* ==========================================================================
                 Global Edit Transaction Modal (Available on all pages)
