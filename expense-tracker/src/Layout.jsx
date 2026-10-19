@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import axios from 'axios'
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from './constants/categories'
 import { THEME_PALETTES, CURRENCY_CONFIG, CURRENCY_SYMBOLS } from './constants/theme'
-import { API_BASE_URL } from './constants/api'
+import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from './api/transactionsApi'
+import { formatCurrency, formatTxDate } from './utils/formatters'
 
 
 const Layout = () => {
@@ -41,7 +41,7 @@ const Layout = () => {
 
     // Fetch transactions on mount
     const fetchTransactions = () => {
-        axios.get(`${API_BASE_URL}/transactions`)
+        getTransactions()
             .then((response) => {
                 setTransactions(response.data);
                 setApiStatus("Connected to Express API!");
@@ -101,43 +101,8 @@ const Layout = () => {
     const totalExpense = expense.reduce((acc, curr) => acc + curr.amount, 0);
     const balance = totalIncome - totalExpense;
 
-    // Currency Formatter using standard Intl.NumberFormat
-    const formatCurrency = (val) => {
-        const num = Number(val) || 0;
-        const config = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG.NGN;
-        try {
-            return new Intl.NumberFormat(config.locale, {
-                style: 'currency',
-                currency: config.currency,
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(num);
-        } catch {
-            const isNegative = num < 0;
-            const absVal = Math.abs(num);
-            const formatted = absVal.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            });
-            return `${isNegative ? '-' : ''}${config.symbol}${formatted}`;
-        }
-    };
-
-
-    // Date & Time Formatter
-    const formatTxDate = (dateStr) => {
-        if (!dateStr) return { date: "Recent", time: "Just now" };
-        try {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return { date: "Recent", time: "Just now" };
-            return {
-                date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-            };
-        } catch {
-            return { date: "Recent", time: "Just now" };
-        }
-    };
+    // Currency Formatter bound to the active user currency preference
+    const formatCurrencyDisplay = (val) => formatCurrency(val, currency);
 
     // Create Transaction Handler
     const handleCreateTransaction = async (txData) => {
@@ -146,10 +111,7 @@ const Layout = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await axios.post(`${API_BASE_URL}/transactions`, {
-                ...txData,
-                amount: Number(txData.amount)
-            });
+            const response = await createTransaction(txData);
 
             setTransactions((prev) => [...prev, response.data]);
             return true;
@@ -186,15 +148,7 @@ const Layout = () => {
         setEditErrorMessage("");
 
         try {
-            const response = await axios.put(
-                `${API_BASE_URL}/transactions/${editingTransaction._id}`,
-                {
-                    description: editingTransaction.description,
-                    amount: Number(editingTransaction.amount),
-                    type: editingTransaction.type,
-                    category: editingTransaction.category
-                }
-            );
+            const response = await updateTransaction(editingTransaction._id, editingTransaction);
 
             setTransactions((prev) =>
                 prev.map((item) => (item._id === editingTransaction._id ? response.data : item))
@@ -215,7 +169,7 @@ const Layout = () => {
         setIsDeleting(true);
 
         try {
-            await axios.delete(`${API_BASE_URL}/transactions/${transactionToDelete._id}`);
+            await deleteTransaction(transactionToDelete._id);
             setTransactions((prev) => prev.filter((item) => item._id !== transactionToDelete._id));
             setTransactionToDelete(null);
         } catch (error) {
@@ -461,7 +415,7 @@ const Layout = () => {
                         totalIncome,
                         totalExpense,
                         balance,
-                        formatCurrency,
+                        formatCurrency: formatCurrencyDisplay,
                         formatTxDate,
                         handleCreateTransaction,
                         startEditing,
@@ -774,7 +728,7 @@ const Layout = () => {
                         </div>
                         <h2 id="delete-dialog-title" className="delete-dialog-title">Delete Transaction?</h2>
                         <p id="delete-dialog-desc" className="delete-dialog-desc">
-                            Are you sure you want to delete <strong>"{transactionToDelete.description}"</strong> ({formatCurrency(transactionToDelete.amount)})? This action cannot be undone.
+                            Are you sure you want to delete <strong>"{transactionToDelete.description}"</strong> ({formatCurrencyDisplay(transactionToDelete.amount)})? This action cannot be undone.
                         </p>
 
                         <div className="modal-actions">
