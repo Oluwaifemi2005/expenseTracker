@@ -2,7 +2,13 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
-const transactionModel= require("./models/Transaction")
+const transactionModel = require("./models/Transaction");
+const {
+    createTransactionSchema,
+    updateTransactionSchema,
+    isValidObjectId,
+    formatValidationError
+} = require("./validators/transactionValidator");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,33 +26,34 @@ app.get("/", (req,res) => {
 
 app.get("/api/transactions", async (req,res) => {
     try {
-        const data = await transactionModel.find()
-            return res.status(200).json(data)
-        
+        const data = await transactionModel.find();
+        return res.status(200).json(data);
     } catch (error) {
-        console.log('====================================');
-        console.log(error);
-        console.log('====================================');
-        
+        console.error("GET error:", error.message || error);
         return res.status(500).json({message: "Failed to fetch transactions"});
     }
-    // res.json(transactions);
 });
 
 app.post("/api/transactions", async (req, res) => {
+    const validationResult = createTransactionSchema.safeParse(req.body);
+    if (!validationResult.success) {
+        const { message, errors } = formatValidationError(validationResult.error);
+        return res.status(400).json({ message, errors });
+    }
+
     try {
-        const { description, amount, type, category } = req.body;
+        const { description, amount, type, category } = validationResult.data;
 
         const newTransaction = await transactionModel.create({
             description,
-            amount: Number(amount),
+            amount,
             type,
-            category: category || "Other"
+            category
         });
 
         return res.status(201).json(newTransaction);
     } catch (error) {
-        console.error("POST error:", error);
+        console.error("POST error:", error.message || error);
 
         if (error.name === "ValidationError") {
             return res.status(400).json({
@@ -62,37 +69,19 @@ app.post("/api/transactions", async (req, res) => {
 
 app.put("/api/transactions/:id", async (req, res) => {
     try {
-        if (!mongoose.isObjectIdOrHexString(req.params.id)) {
+        if (!isValidObjectId(req.params.id)) {
             return res.status(400).json({
                 message: "Invalid transaction ID"
             });
         }
 
-        const { description, amount, type, category } = req.body;
-
-        if (description !== undefined && (typeof description !== "string" || !description.trim())) {
-            return res.status(400).json({
-                message: "Please provide a valid, non-empty description."
-            });
+        const validationResult = updateTransactionSchema.safeParse(req.body);
+        if (!validationResult.success) {
+            const { message, errors } = formatValidationError(validationResult.error);
+            return res.status(400).json({ message, errors });
         }
 
-        if (amount !== undefined && (isNaN(Number(amount)) || Number(amount) <= 0)) {
-            return res.status(400).json({
-                message: "Amount must be a positive number greater than 0."
-            });
-        }
-
-        if (type !== undefined && !["expense", "income"].includes(type)) {
-            return res.status(400).json({
-                message: "Transaction type must be 'income' or 'expense'."
-            });
-        }
-
-        const updateData = {};
-        if (description !== undefined) updateData.description = description.trim();
-        if (amount !== undefined) updateData.amount = Number(amount);
-        if (type !== undefined) updateData.type = type;
-        if (category !== undefined) updateData.category = category;
+        const updateData = validationResult.data;
 
         const updatedTransaction = await transactionModel.findByIdAndUpdate(
             req.params.id,
@@ -108,7 +97,7 @@ app.put("/api/transactions/:id", async (req, res) => {
 
         return res.status(200).json(updatedTransaction);
     } catch (error) {
-        console.error("PUT error:", error);
+        console.error("PUT error:", error.message || error);
 
         if (error.name === "ValidationError") {
             return res.status(400).json({
@@ -124,7 +113,7 @@ app.put("/api/transactions/:id", async (req, res) => {
 
 app.delete("/api/transactions/:id", async(req, res) => {
     try {
-        if (!mongoose.isObjectIdOrHexString(req.params.id)) {
+        if (!isValidObjectId(req.params.id)) {
             return res.status(400).json({
                 message: "Invalid transaction ID"
             });
@@ -135,7 +124,7 @@ app.delete("/api/transactions/:id", async(req, res) => {
         }
         return res.status(404).json({ message: "Transaction not found" });
     } catch (error) {
-        console.error("DELETE error:", error);
+        console.error("DELETE error:", error.message || error);
         return res.status(500).json({ message: "An error occurred while deleting transaction" });
     }
 });
