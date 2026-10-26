@@ -13,7 +13,11 @@ const SettingsView = () => {
         showTime,
         setShowTime,
         fetchTransactions,
-        transactions
+        transactions,
+        user,
+        isAuthenticated,
+        logout,
+        openLoginModal
     } = useOutletContext();
 
     const [activeTab, setActiveTab] = useState("general");
@@ -77,6 +81,18 @@ const SettingsView = () => {
                                 <line x1="9" y1="3" x2="9" y2="21" />
                             </svg>
                             <span>Display Options</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            className={`sub-nav-item ${activeTab === 'account' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('account')}
+                        >
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                            <span>Account & Security</span>
                         </button>
                     </div>
 
@@ -245,6 +261,78 @@ const SettingsView = () => {
                                             </span>
                                         </label>
                                     </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {activeTab === 'account' && (
+                        <>
+                            <div className="prime-settings-row">
+                                <div className="row-label-column">
+                                    <h3 className="row-title">User Account</h3>
+                                    <p className="row-desc">Your active authenticated profile and session state.</p>
+                                </div>
+                                <div className="row-control-column">
+                                    {isAuthenticated && user ? (
+                                        <div className="system-info-table">
+                                            <div className="sys-row">
+                                                <span className="sys-label">Full Name</span>
+                                                <span className="sys-val" style={{ fontWeight: 700 }}>{user.name}</span>
+                                            </div>
+                                            <div className="sys-row">
+                                                <span className="sys-label">Email Address</span>
+                                                <span className="sys-val">{user.email}</span>
+                                            </div>
+                                            <div className="sys-row">
+                                                <span className="sys-label">User ID</span>
+                                                <span className="sys-val" style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{user.id}</span>
+                                            </div>
+                                            <div className="sys-row">
+                                                <span className="sys-label">Authentication Mode</span>
+                                                <span className="sys-val" style={{ color: 'var(--color-income)' }}>Active Session (HTTP-only Cookie)</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                                            <p className="control-subtext">You are currently using Vaultex in Guest mode. Sign in to isolate and synchronize your financial records.</p>
+                                            <button
+                                                type="button"
+                                                className="btn-primary"
+                                                style={{ alignSelf: 'flex-start', padding: '0.65rem 1.25rem' }}
+                                                onClick={openLoginModal}
+                                            >
+                                                Sign In / Register
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="prime-settings-row">
+                                <div className="row-label-column">
+                                    <h3 className="row-title">Security & Session</h3>
+                                    <p className="row-desc">Manage your authentication session and sign out.</p>
+                                </div>
+                                <div className="row-control-column">
+                                    {isAuthenticated ? (
+                                        <div className="prime-actions-row">
+                                            <button
+                                                type="button"
+                                                className="btn-secondary btn-danger-subtle"
+                                                onClick={logout}
+                                            >
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                                                    <polyline points="16 17 21 12 16 7" />
+                                                    <line x1="21" y1="12" x2="9" y2="12" />
+                                                </svg>
+                                                <span>Sign Out of Vaultex</span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <p className="control-subtext">No active session to terminate.</p>
+                                    )}
                                 </div>
                             </div>
                         </>

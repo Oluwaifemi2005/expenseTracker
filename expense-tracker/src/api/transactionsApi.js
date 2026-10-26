@@ -1,15 +1,14 @@
-import axios from 'axios';
-import { API_BASE_URL } from '../constants/api.js';
-
-const TRANSACTIONS_ENDPOINT = `${API_BASE_URL}/transactions`;
+import apiClient from './client.js';
 
 /**
  * Fetch all transaction records from the Express REST API.
  * Corresponds to: GET /api/transactions
+ * Automatically sends session credentials and returns user-scoped records.
+ * 
  * @returns {Promise<import('axios').AxiosResponse>}
  */
 export const getTransactions = () => {
-    return axios.get(TRANSACTIONS_ENDPOINT);
+    return apiClient.get('/transactions');
 };
 
 /**
@@ -19,7 +18,7 @@ export const getTransactions = () => {
  * @returns {Promise<import('axios').AxiosResponse>}
  */
 export const createTransaction = (txData) => {
-    return axios.post(TRANSACTIONS_ENDPOINT, {
+    return apiClient.post('/transactions', {
         ...txData,
         amount: Number(txData.amount)
     });
@@ -33,7 +32,7 @@ export const createTransaction = (txData) => {
  * @returns {Promise<import('axios').AxiosResponse>}
  */
 export const updateTransaction = (id, txData) => {
-    return axios.put(`${TRANSACTIONS_ENDPOINT}/${id}`, {
+    return apiClient.put(`/transactions/${id}`, {
         description: txData.description,
         amount: Number(txData.amount),
         type: txData.type,
@@ -48,5 +47,26 @@ export const updateTransaction = (id, txData) => {
  * @returns {Promise<import('axios').AxiosResponse>}
  */
 export const deleteTransaction = (id) => {
-    return axios.delete(`${TRANSACTIONS_ENDPOINT}/${id}`);
+    return apiClient.delete(`/transactions/${id}`);
 };
+
+/**
+ * Preview an uploaded CSV transactions file with server-side validation.
+ * Corresponds to: POST /api/transactions/import-preview
+ * @param {string} csvContent
+ * @returns {Promise<import('axios').AxiosResponse>}
+ */
+export const previewTransactionsImport = (csvContent) => {
+    return apiClient.post('/transactions/import-preview', { csvContent });
+};
+
+/**
+ * Import validated transactions from CSV.
+ * Corresponds to: POST /api/transactions/import
+ * @param {{ csvContent: string, importMode?: 'valid_only'|'all_or_nothing', skipExistingDuplicates?: boolean, skipInFileDuplicates?: boolean }} payload
+ * @returns {Promise<import('axios').AxiosResponse>}
+ */
+export const importTransactions = (payload) => {
+    return apiClient.post('/transactions/import', payload);
+};
+

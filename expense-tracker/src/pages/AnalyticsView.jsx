@@ -1,98 +1,46 @@
 import React, { useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { CATEGORY_COLORS } from '../constants/categories'
-
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+import { calculateCategoryBreakdown, calculateMonthlyAggregates } from '../utils/finance'
 
 const AnalyticsView = () => {
     const {
-        transactions,
-        income,
-        expense,
-        totalIncome,
-        totalExpense,
-        balance,
-        formatCurrency
+        transactions = [],
+        income = [],
+        expense = [],
+        totalIncome = 0,
+        totalExpense = 0,
+        balance = 0,
+        savingsRate = 0,
+        formatCurrency,
+        user
     } = useOutletContext();
 
     const [hoveredMonth, setHoveredMonth] = useState(null);
+    const [selectedYear, setSelectedYear] = useState(null);
 
-    // 1. Savings Rate Calculation (Real mathematical formula)
-    const savingsRate = useMemo(() => {
-        if (totalIncome <= 0) return 0;
-        const rate = (balance / totalIncome) * 100;
-        return Math.max(-100, Math.min(100, Math.round(rate)));
-    }, [balance, totalIncome]);
-
-    // 2. Spending Distribution by Category (Real mathematical calculations from expense records)
+    // 1. Spending Distribution by Category (Unified calculation via pure utility)
     const categoryDistribution = useMemo(() => {
-        if (totalExpense <= 0) return [];
-
-        const catMap = {};
-        expense.forEach((tx) => {
-            const cat = tx.category || 'Other';
-            catMap[cat] = (catMap[cat] || 0) + tx.amount;
-        });
-
-        const list = Object.keys(catMap).map((cat) => {
-            const amount = catMap[cat];
-            const percentage = ((amount / totalExpense) * 100).toFixed(1);
-            return {
-                category: cat,
-                amount,
-                percentage: Number(percentage),
-                color: CATEGORY_COLORS[cat] || '#64748b'
-            };
-        });
-
-        return list.sort((a, b) => b.amount - a.amount);
+        return calculateCategoryBreakdown(expense, totalExpense);
     }, [expense, totalExpense]);
 
-    // 3. Monthly Income vs Expenses Aggregation (Grouped by actual transaction dates)
-    const monthlyData = useMemo(() => {
-        // Group transactions into months of current year or recent months
-        const monthsMap = {};
-        
-        // Initialize 12 calendar months with 0s
-        for (let i = 0; i < 12; i++) {
-            monthsMap[i] = { monthIndex: i, name: MONTH_NAMES[i], income: 0, expense: 0 };
-        }
-
-        transactions.forEach((tx) => {
-            if (!tx.createdAt) return;
-            const d = new Date(tx.createdAt);
-            if (!isNaN(d.getTime())) {
-                const m = d.getMonth();
-
-                if (monthsMap[m]) {
-                    if (tx.type === "income") {
-                        monthsMap[m].income += tx.amount;
-                    } else {
-                        monthsMap[m].expense += tx.amount;
-                    }
-                }
-            }
-        });
-
-        return Object.values(monthsMap);
-    }, [transactions]);
-
-    // Find highest monthly value for chart scale
-    const maxMonthlyVal = useMemo(() => {
-        let max = 1000;
-        monthlyData.forEach((m) => {
-            if (m.income > max) max = m.income;
-            if (m.expense > max) max = m.expense;
-        });
-        return max;
-    }, [monthlyData]);
+    // 2. Monthly Income vs Expenses Aggregation (Strictly isolated by calendar year)
+    const {
+        months: monthlyData,
+        maxMonthlyValue: maxMonthlyVal,
+        activeYear,
+        availableYears
+    } = useMemo(() => {
+        return calculateMonthlyAggregates(transactions, { year: selectedYear });
+    }, [transactions, selectedYear]);
 
     return (
         <div className="jeamstar-analytics-container">
             {/* Top Greeting Subheader */}
             <div className="jeamstar-welcome-banner">
                 <div>
-                    <h2 className="welcome-title">Welcome back, Emmanuel</h2>
+                    <h2 className="welcome-title">
+                        {user?.name ? `Welcome back, ${user.name}` : 'Welcome back'}
+                    </h2>
                     <p className="welcome-subtitle">
                         {balance >= 0 
                             ? "Your current financial health is positive. Track your monthly trajectory below."
@@ -216,8 +164,29 @@ const AnalyticsView = () => {
                             <h3 className="chart-card-title">Monthly Income vs Expenses</h3>
                             <p className="chart-card-sub">Comparison of inflows vs outflows across calendar months.</p>
                         </div>
-                        <div className="jeamstar-period-select">
-                            <span>Yearly ▾</span>
+                        <div className={`jeamstar-period-select ${availableYears.length <= 1 ? 'is-static' : ''}`}>
+                            {availableYears.length > 1 ? (
+                                <select
+                                    value={activeYear}
+                                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                    aria-label="Select calendar year for analytics"
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'inherit',
+                                        font: 'inherit',
+                                        cursor: 'pointer',
+                                        padding: '0 4px',
+                                        outline: 'none'
+                                    }}
+                                >
+                                    {availableYears.map((yr) => (
+                                        <option key={yr} value={yr}>{yr}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <span>{activeYear}</span>
+                            )}
                         </div>
                     </div>
 
@@ -306,7 +275,8 @@ const AnalyticsView = () => {
                                     {categoryDistribution.reduce((acc, cat) => {
                                         const radius = 60;
                                         const circumference = 2 * Math.PI * radius; // ~376.99
-                                        const strokeDasharray = `${(cat.percentage / 100) * circumference} ${circumference}`;
+                                        const ratio = totalExpense > 0 ? (cat.amount / totalExpense) : 0;
+                                        const strokeDasharray = `${ratio * circumference} ${circumference}`;
                                         const strokeDashoffset = -acc.offset;
 
                                         acc.segments.push(
@@ -324,7 +294,7 @@ const AnalyticsView = () => {
                                             />
                                         );
 
-                                        acc.offset += (cat.percentage / 100) * circumference;
+                                        acc.offset += ratio * circumference;
                                         return acc;
                                     }, { offset: 0, segments: [] }).segments}
                                 </svg>

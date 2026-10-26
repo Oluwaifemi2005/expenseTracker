@@ -45,6 +45,13 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 
+    // Handle MongoDB duplicate key error (code 11000)
+    if (err.code === 11000) {
+        return res.status(409).json({
+            message: "An account with this email address already exists."
+        });
+    }
+
     // Generic HTTP status if attached to error, otherwise 500
     const statusCode = typeof err.statusCode === 'number'
         ? err.statusCode

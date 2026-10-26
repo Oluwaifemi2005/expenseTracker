@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, CATEGORY_COLORS } from '../constants/categories'
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, getCategoryColor } from '../constants/categories'
+import { calculateCategoryBreakdown, calculatePagination } from '../utils/finance'
+import ImportTransactionsModal from '../components/modals/ImportTransactionsModal'
 
 const ALL_CATEGORIES = Array.from(new Set([...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES]));
 
@@ -11,14 +13,21 @@ const TransactionsView = () => {
         expense = [],
         totalIncome = 0,
         totalExpense = 0,
+        balance = 0,
+        inflowOutflowRatio = null,
+        averageExpense = 0,
         formatCurrency,
         formatTxDate,
         startEditing,
         setTransactionToDelete,
         setIsAddModalOpen,
         compactView,
-        showTime
+        showTime,
+        fetchTransactions,
+        currency = 'USD'
     } = useOutletContext();
+
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     // Search, Filter, and Sort States
     const [searchQuery, setSearchQuery] = useState("");
@@ -48,12 +57,15 @@ const TransactionsView = () => {
         }
 
         result.sort((a, b) => {
-            if (sortBy === "highest") return b.amount - a.amount;
-            if (sortBy === "lowest") return a.amount - b.amount;
-            if (sortBy === "oldest") {
-                return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
-            }
-            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+            const amtA = Number(a.amount) || 0;
+            const amtB = Number(b.amount) || 0;
+            if (sortBy === "highest") return amtB - amtA;
+            if (sortBy === "lowest") return amtA - amtB;
+
+            const timeA = new Date(a.date || a.createdAt || 0).getTime();
+            const timeB = new Date(b.date || b.createdAt || 0).getTime();
+            if (sortBy === "oldest") return timeA - timeB;
+            return timeB - timeA;
         });
 
         return result;
@@ -68,23 +80,31 @@ const TransactionsView = () => {
         setSortBy("newest");
     };
 
+    // Pagination configuration & state (10 items per page)
+    const PAGE_SIZE = 10;
+    const [currentPage, setCurrentPage] = useState(1);
+    const [prevFilterKey, setPrevFilterKey] = useState(() => `${searchQuery}|${typeFilter}|${categoryFilter}|${sortBy}`);
+
+    // Reset to page 1 during render whenever search, filters, or sorting change
+    const currentFilterKey = `${searchQuery}|${typeFilter}|${categoryFilter}|${sortBy}`;
+    if (prevFilterKey !== currentFilterKey) {
+        setPrevFilterKey(currentFilterKey);
+        setCurrentPage(1);
+    }
+
+    // Calculate pagination slice and bounded metadata
+    const pagination = useMemo(() => {
+        return calculatePagination(filteredTransactions, currentPage, PAGE_SIZE);
+    }, [filteredTransactions, currentPage]);
+
+    // Keep currentPage in sync if items were deleted or reduced
+    if (currentPage > pagination.totalPages) {
+        setCurrentPage(pagination.totalPages);
+    }
+
     // Calculate real category expense breakdown for the Cazura right panel
     const expenseBreakdown = useMemo(() => {
-        if (totalExpense <= 0) return [];
-        const map = {};
-        expense.forEach((tx) => {
-            const cat = tx.category || 'Other';
-            map[cat] = (map[cat] || 0) + tx.amount;
-        });
-
-        const list = Object.keys(map).map((cat) => ({
-            category: cat,
-            amount: map[cat],
-            percentage: Number(((map[cat] / totalExpense) * 100).toFixed(1)),
-            color: CATEGORY_COLORS[cat] || '#64748b'
-        }));
-
-        return list.sort((a, b) => b.amount - a.amount);
+        return calculateCategoryBreakdown(expense, totalExpense);
     }, [expense, totalExpense]);
 
     // Top categories and others
@@ -111,6 +131,20 @@ const TransactionsView = () => {
 
                     <button
                         type="button"
+                        className="cazura-import-btn"
+                        onClick={() => setIsImportModalOpen(true)}
+                        title="Import transactions from CSV file"
+                    >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        <span>Import CSV</span>
+                    </button>
+
+                    <button
+                        type="button"
                         className="cazura-add-btn"
                         onClick={() => setIsAddModalOpen(true)}
                     >
@@ -132,7 +166,6 @@ const TransactionsView = () => {
                         <article className="cazura-kpi-card">
                             <div className="cazura-kpi-header">
                                 <span className="cazura-kpi-title">Total Transactions</span>
-                                <span className="cazura-more-dots">•••</span>
                             </div>
                             <div className="cazura-kpi-val">{transactions.length}</div>
                             <div className="cazura-kpi-trend trend-positive">
@@ -143,7 +176,6 @@ const TransactionsView = () => {
                         <article className="cazura-kpi-card">
                             <div className="cazura-kpi-header">
                                 <span className="cazura-kpi-title">Incomes</span>
-                                <span className="cazura-more-dots">•••</span>
                             </div>
                             <div className="cazura-kpi-val text-income">{formatCurrency(totalIncome)}</div>
                             <div className="cazura-kpi-trend trend-positive">
@@ -154,7 +186,6 @@ const TransactionsView = () => {
                         <article className="cazura-kpi-card">
                             <div className="cazura-kpi-header">
                                 <span className="cazura-kpi-title">Expenses</span>
-                                <span className="cazura-more-dots">•••</span>
                             </div>
                             <div className="cazura-kpi-val text-expense">-{formatCurrency(totalExpense).replace('-', '')}</div>
                             <div className="cazura-kpi-trend trend-negative">
@@ -180,6 +211,7 @@ const TransactionsView = () => {
                                         placeholder="Search Transaction..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
+                                        aria-label="Search transactions"
                                     />
                                     {searchQuery && (
                                         <button
@@ -282,10 +314,10 @@ const TransactionsView = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredTransactions.map((tx) => {
-                                            const txDate = formatTxDate(tx.createdAt);
+                                        {pagination.paginatedItems.map((tx) => {
+                                            const txDate = formatTxDate(tx.date || tx.createdAt);
                                             const categoryLabel = tx.category || "Other";
-                                            const catColor = CATEGORY_COLORS[categoryLabel] || "#64748b";
+                                            const catColor = getCategoryColor(categoryLabel);
 
                                             return (
                                                 <tr key={tx._id}>
@@ -364,12 +396,34 @@ const TransactionsView = () => {
                                 {/* Cazura Pagination Bar Footer */}
                                 <div className="cazura-table-footer">
                                     <span className="cazura-footer-count">
-                                        Showing <strong>{filteredTransactions.length}</strong> of {transactions.length} records
+                                        Showing <strong>{pagination.totalItems === 0 ? 0 : pagination.startIndex + 1}–{pagination.endIndex}</strong> of {pagination.totalItems} {pagination.totalItems === 1 ? 'record' : 'records'}
+                                        {pagination.totalItems !== transactions.length && (
+                                            <span className="cazura-footer-total"> (filtered from {transactions.length})</span>
+                                        )}
                                     </span>
-                                    <div className="cazura-pagination-pill">
-                                        <button type="button" disabled aria-label="Previous page">‹</button>
-                                        <span className="page-active">1</span>
-                                        <button type="button" disabled aria-label="Next page">›</button>
+                                    <div className="cazura-pagination-pill" role="navigation" aria-label="Transactions pagination">
+                                        <button
+                                            type="button"
+                                            disabled={!pagination.hasPrevPage}
+                                            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                                            aria-label="Previous page"
+                                        >
+                                            ‹
+                                        </button>
+                                        <span className="page-active" aria-current="page" title={`Page ${pagination.currentPage} of ${pagination.totalPages}`}>
+                                            {pagination.currentPage}
+                                        </span>
+                                        <span className="page-total" aria-label={`Total pages: ${pagination.totalPages}`}>
+                                            / {pagination.totalPages}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            disabled={!pagination.hasNextPage}
+                                            onClick={() => setCurrentPage((prev) => Math.min(pagination.totalPages, prev + 1))}
+                                            aria-label="Next page"
+                                        >
+                                            ›
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -397,7 +451,6 @@ const TransactionsView = () => {
                     <div className="cazura-side-card">
                         <div className="side-card-header">
                             <h3>Expense Breakdown</h3>
-                            <span className="cazura-more-dots">•••</span>
                         </div>
 
                         {expenseBreakdown.length > 0 ? (
@@ -457,29 +510,41 @@ const TransactionsView = () => {
                     <div className="cazura-side-card">
                         <div className="side-card-header">
                             <h3>Financial Position</h3>
-                            <span className="cazura-more-dots">•••</span>
                         </div>
                         <div className="cazura-position-stats">
                             <div className="position-item">
                                 <span className="pos-label">Net Balance</span>
-                                <span className="pos-val">{formatCurrency(totalIncome - totalExpense)}</span>
+                                <span className="pos-val">{formatCurrency(balance)}</span>
                             </div>
                             <div className="position-item">
                                 <span className="pos-label">Inflow to Outflow Ratio</span>
                                 <span className="pos-val">
-                                    {totalExpense > 0 ? (totalIncome / totalExpense).toFixed(2) : 'N/A'}x
+                                    {inflowOutflowRatio !== null ? `${inflowOutflowRatio}x` : 'N/A'}
                                 </span>
                             </div>
                             <div className="position-item">
                                 <span className="pos-label">Avg. Outflow Size</span>
                                 <span className="pos-val">
-                                    {expense.length > 0 ? formatCurrency(totalExpense / expense.length) : formatCurrency(0)}
+                                    {formatCurrency(averageExpense)}
                                 </span>
                             </div>
                         </div>
                     </div>
                 </aside>
             </div>
+
+            {/* CSV Import Modal */}
+            <ImportTransactionsModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImportSuccess={() => {
+                    if (fetchTransactions) {
+                        fetchTransactions();
+                    }
+                }}
+                currency={currency}
+                formatCurrency={formatCurrency}
+            />
         </div>
     );
 };

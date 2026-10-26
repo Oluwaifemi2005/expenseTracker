@@ -1,22 +1,68 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { THEME_PALETTES, CURRENCY_CONFIG } from './constants/theme'
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from './api/transactionsApi'
+import { getBudgets, createBudget as createBudgetApi, updateBudget as updateBudgetApi, deleteBudget as deleteBudgetApi } from './api/budgetsApi'
+import { getGoals, createGoal as createGoalApi, updateGoal as updateGoalApi, deleteGoal as deleteGoalApi, adjustContribution as adjustContributionApi } from './api/goalsApi'
+import {
+    getRecurringRules,
+    createRecurringRule as createRecurringApi,
+    updateRecurringRule as updateRecurringApi,
+    toggleRecurringStatus as toggleRecurringStatusApi,
+    deleteRecurringRule as deleteRecurringApi,
+    processDueRecurring
+} from './api/recurringApi'
 import { formatCurrency, formatTxDate } from './utils/formatters'
 import { calculateTotals } from './utils/finance'
+import {
+    getNotifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    dismissNotification
+} from './api/notificationApi'
+import NotificationPopover from './components/NotificationPopover'
 import DeleteConfirmModal from './components/modals/DeleteConfirmModal'
 import AddTransactionModal from './components/modals/AddTransactionModal'
 import EditTransactionModal from './components/modals/EditTransactionModal'
-
+import AuthModal from './components/modals/AuthModal'
+import useAuth from './context/useAuth'
 
 const Layout = () => {
     const location = useLocation();
+
+    // Authentication Context
+    const {
+        user,
+        isAuthenticated,
+        loading: authLoading,
+        logout,
+        openLoginModal,
+        openRegisterModal
+    } = useAuth();
 
     // Central Transactions State
     const [transactions, setTransactions] = useState([]);
     const [apiStatus, setApiStatus] = useState("Connecting...");
     const [errorMessage, setErrorMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Central Budgets State
+    const [budgets, setBudgets] = useState([]);
+    const [isBudgetsLoading, setIsBudgetsLoading] = useState(false);
+
+    // Central Savings Goals State
+    const [goals, setGoals] = useState([]);
+    const [isGoalsLoading, setIsGoalsLoading] = useState(false);
+
+    // Central Recurring Rules State
+    const [recurringRules, setRecurringRules] = useState([]);
+    const [isRecurringLoading, setIsRecurringLoading] = useState(false);
+    const [isProcessingDue, setIsProcessingDue] = useState(false);
+
+    // Central In-App Notifications State
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
     // Add Modal State (for Cazura + Add Transaction action)
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -42,8 +88,13 @@ const Layout = () => {
     const [compactView, setCompactView] = useState(() => localStorage.getItem("vaultex_compact") === "true");
     const [showTime, setShowTime] = useState(() => localStorage.getItem("vaultex_show_time") !== "false");
 
-    // Fetch transactions on mount
-    const fetchTransactions = () => {
+    // Fetch transactions on mount & when auth state changes
+    const fetchTransactions = useCallback(() => {
+        if (!isAuthenticated || !user) {
+            setTransactions([]);
+            return;
+        }
+
         getTransactions()
             .then((response) => {
                 setTransactions(response.data);
@@ -51,13 +102,173 @@ const Layout = () => {
             })
             .catch((error) => {
                 console.error("API error:", error);
-                setApiStatus("Could not connect to the API");
+                if (error.response?.status === 401) {
+                    setTransactions([]);
+                    setApiStatus("Session expired");
+                } else {
+                    setApiStatus("Could not connect to the API");
+                }
             });
-    };
+    }, [isAuthenticated, user]);
+
+    // Fetch budgets on mount & when auth state changes
+    const fetchBudgets = useCallback(() => {
+        if (!isAuthenticated || !user) {
+            setBudgets([]);
+            return;
+        }
+
+        setIsBudgetsLoading(true);
+        getBudgets()
+            .then((response) => {
+                setBudgets(response.data);
+            })
+            .catch((error) => {
+                console.error("Budgets fetch error:", error);
+                if (error.response?.status === 401) {
+                    setBudgets([]);
+                }
+            })
+            .finally(() => {
+                setIsBudgetsLoading(false);
+            });
+    }, [isAuthenticated, user]);
+
+    // Fetch savings goals on mount & when auth state changes
+    const fetchGoals = useCallback(() => {
+        if (!isAuthenticated || !user) {
+            setGoals([]);
+            return;
+        }
+
+        setIsGoalsLoading(true);
+        getGoals()
+            .then((response) => {
+                setGoals(response.data);
+            })
+            .catch((error) => {
+                console.error("Goals fetch error:", error);
+                if (error.response?.status === 401) {
+                    setGoals([]);
+                }
+            })
+            .finally(() => {
+                setIsGoalsLoading(false);
+            });
+    }, [isAuthenticated, user]);
+
+    // Fetch recurring rules on mount & when auth state changes
+    const fetchRecurring = useCallback(() => {
+        if (!isAuthenticated || !user) {
+            setRecurringRules([]);
+            return;
+        }
+
+        setIsRecurringLoading(true);
+        getRecurringRules()
+            .then((response) => {
+                setRecurringRules(response.data);
+            })
+            .catch((error) => {
+                console.error("Recurring rules fetch error:", error);
+                if (error.response?.status === 401) {
+                    setRecurringRules([]);
+                }
+            })
+            .finally(() => {
+                setIsRecurringLoading(false);
+            });
+    }, [isAuthenticated, user]);
 
     useEffect(() => {
-        fetchTransactions();
-    }, []);
+        let isCurrent = true;
+        if (!isAuthenticated || !user) {
+            return;
+        }
+
+        getTransactions()
+            .then((response) => {
+                if (isCurrent) {
+                    setTransactions(response.data);
+                    setApiStatus("Connected to Express API!");
+                }
+            })
+            .catch((error) => {
+                if (isCurrent) {
+                    console.error("API error:", error);
+                    if (error.response?.status === 401) {
+                        setTransactions([]);
+                        setApiStatus("Session expired");
+                    } else {
+                        setApiStatus("Could not connect to the API");
+                    }
+                }
+            });
+
+        getBudgets()
+            .then((response) => {
+                if (isCurrent) {
+                    setBudgets(response.data);
+                }
+            })
+            .catch((error) => {
+                if (isCurrent) {
+                    console.error("Budgets fetch error:", error);
+                    if (error.response?.status === 401) {
+                        setBudgets([]);
+                    }
+                }
+            })
+            .finally(() => {
+                if (isCurrent) {
+                    setIsBudgetsLoading(false);
+                }
+            });
+
+        getGoals()
+            .then((response) => {
+                if (isCurrent) {
+                    setGoals(response.data);
+                }
+            })
+            .catch((error) => {
+                if (isCurrent) {
+                    console.error("Goals fetch error:", error);
+                    if (error.response?.status === 401) {
+                        setGoals([]);
+                    }
+                }
+            })
+            .finally(() => {
+                if (isCurrent) {
+                    setIsGoalsLoading(false);
+                }
+            });
+
+        getRecurringRules()
+            .then((response) => {
+                if (isCurrent) {
+                    setRecurringRules(response.data);
+                }
+            })
+            .catch((error) => {
+                if (isCurrent) {
+                    console.error("Recurring rules fetch error:", error);
+                    if (error.response?.status === 401) {
+                        setRecurringRules([]);
+                    }
+                }
+            })
+            .finally(() => {
+                if (isCurrent) {
+                    setIsRecurringLoading(false);
+                }
+            });
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [isAuthenticated, user]);
 
     // Apply Theme Color changes to root
     useEffect(() => {
@@ -72,7 +283,6 @@ const Layout = () => {
         root.style.setProperty("--border-focus", palette.accent);
         root.style.setProperty("--shadow-focus", `0 0 0 3px ${palette.accentRgba}`);
     }, [themeColor]);
-
 
     useEffect(() => {
         localStorage.setItem("vaultex_currency", currency);
@@ -97,20 +307,33 @@ const Layout = () => {
     }
 
     // Financial Calculations
-    const { income, expense, totalIncome, totalExpense, balance } = calculateTotals(transactions);
+    const {
+        income,
+        expense,
+        totalIncome,
+        totalExpense,
+        balance,
+        savingsRate,
+        inflowOutflowRatio,
+        averageExpense
+    } = calculateTotals(transactions);
 
     // Currency Formatter bound to the active user currency preference
     const formatCurrencyDisplay = (val) => formatCurrency(val, currency);
 
     // Create Transaction Handler
     const handleCreateTransaction = async (txData) => {
+        if (!isAuthenticated) {
+            openLoginModal();
+            return false;
+        }
+
         if (isSubmitting) return false;
         setErrorMessage("");
         setIsSubmitting(true);
 
         try {
             const response = await createTransaction(txData);
-
             setTransactions((prev) => [...prev, response.data]);
             return true;
         } catch (error) {
@@ -137,76 +360,271 @@ const Layout = () => {
         }
     };
 
-    // Edit Transaction Handler
-    const handleUpdateTransaction = async (e) => {
-        e.preventDefault();
-        if (isUpdating || !editingTransaction) return;
+    // Start Editing Transaction
+    const startEditing = (tx) => {
+        if (!isAuthenticated) {
+            openLoginModal();
+            return;
+        }
+        setEditErrorMessage("");
+        setEditingTransaction({
+            ...tx,
+            category: tx.category || "Other"
+        });
+    };
 
+    // Handle Update Transaction
+    const handleUpdateTransaction = async (updatedFields) => {
+        if (!isAuthenticated) {
+            openLoginModal();
+            return;
+        }
+
+        if (!editingTransaction) return;
         setIsUpdating(true);
         setEditErrorMessage("");
 
         try {
-            const response = await updateTransaction(editingTransaction._id, editingTransaction);
+            const response = await updateTransaction(editingTransaction._id, updatedFields);
+            const updated = response.data;
 
             setTransactions((prev) =>
-                prev.map((item) => (item._id === editingTransaction._id ? response.data : item))
+                prev.map((t) => (t._id === updated._id ? updated : t))
             );
-
             setEditingTransaction(null);
         } catch (error) {
-            const message = error.response?.data?.message || "Failed to update transaction.";
+            const message = error.response?.data?.message || "Failed to update transaction. Please try again.";
             setEditErrorMessage(message);
         } finally {
             setIsUpdating(false);
         }
     };
 
-    // Delete Transaction Handler
+    // Confirm Delete Transaction
     const confirmDeleteTransaction = async () => {
-        if (!transactionToDelete || isDeleting) return;
+        if (!isAuthenticated) {
+            openLoginModal();
+            return;
+        }
+
+        if (!transactionToDelete) return;
         setIsDeleting(true);
 
         try {
             await deleteTransaction(transactionToDelete._id);
-            setTransactions((prev) => prev.filter((item) => item._id !== transactionToDelete._id));
+            setTransactions((prev) => prev.filter((t) => t._id !== transactionToDelete._id));
             setTransactionToDelete(null);
         } catch (error) {
-            console.error("Delete error:", error);
-            setErrorMessage("Could not delete transaction. Please try again.");
+            console.error("Delete transaction failed:", error);
+            setErrorMessage("Failed to delete transaction. Please try again.");
             setTransactionToDelete(null);
         } finally {
             setIsDeleting(false);
         }
     };
 
-    const startEditing = (tx) => {
-        setEditingTransaction({
-            _id: tx._id,
-            description: tx.description,
-            amount: tx.amount,
-            type: tx.type,
-            category: tx.category || "Other"
-        });
-        setEditErrorMessage("");
+    // Budget Handlers
+    const handleCreateBudget = async (budgetData) => {
+        const response = await createBudgetApi(budgetData);
+        setBudgets((prev) => [response.data, ...prev]);
+        return response.data;
     };
 
-    // Header Content based on active route
+    const handleUpdateBudget = async (id, budgetData) => {
+        const response = await updateBudgetApi(id, budgetData);
+        const updated = response.data;
+        setBudgets((prev) => prev.map((b) => (b._id === updated._id ? updated : b)));
+        return updated;
+    };
+
+    const handleDeleteBudget = async (id) => {
+        await deleteBudgetApi(id);
+        setBudgets((prev) => prev.filter((b) => b._id !== id));
+    };
+
+    // Savings Goals Handlers
+    const handleCreateGoal = async (goalData) => {
+        const response = await createGoalApi(goalData);
+        setGoals((prev) => [response.data, ...prev]);
+        return response.data;
+    };
+
+    const handleUpdateGoal = async (id, goalData) => {
+        const response = await updateGoalApi(id, goalData);
+        const updated = response.data;
+        setGoals((prev) => prev.map((g) => (g._id === updated._id ? updated : g)));
+        return updated;
+    };
+
+    const handleAdjustContribution = async (id, data) => {
+        const response = await adjustContributionApi(id, data);
+        const updated = response.data;
+        setGoals((prev) => prev.map((g) => (g._id === updated._id ? updated : g)));
+        return updated;
+    };
+
+    const handleDeleteGoal = async (id) => {
+        await deleteGoalApi(id);
+        setGoals((prev) => prev.filter((g) => g._id !== id));
+    };
+
+    // Recurring Transaction Handlers
+    const handleCreateRecurring = async (ruleData) => {
+        const response = await createRecurringApi(ruleData);
+        setRecurringRules((prev) => [response.data, ...prev].sort((a, b) => new Date(a.nextOccurrence) - new Date(b.nextOccurrence)));
+        return response.data;
+    };
+
+    const handleUpdateRecurring = async (id, ruleData) => {
+        const response = await updateRecurringApi(id, ruleData);
+        const updated = response.data;
+        setRecurringRules((prev) => prev.map((r) => (r._id === updated._id ? updated : r)).sort((a, b) => new Date(a.nextOccurrence) - new Date(b.nextOccurrence)));
+        return updated;
+    };
+
+    const handleToggleRecurringStatus = async (id) => {
+        const response = await toggleRecurringStatusApi(id);
+        const updated = response.data;
+        setRecurringRules((prev) => prev.map((r) => (r._id === updated._id ? updated : r)));
+        return updated;
+    };
+
+    const handleDeleteRecurring = async (id) => {
+        await deleteRecurringApi(id);
+        setRecurringRules((prev) => prev.filter((r) => r._id !== id));
+    };
+
+    const handleProcessDue = async () => {
+        setIsProcessingDue(true);
+        try {
+            const response = await processDueRecurring();
+            fetchRecurring();
+            fetchTransactions();
+            return response.data;
+        } catch (err) {
+            console.error("Failed to process due recurring transactions:", err);
+            setErrorMessage(err.response?.data?.message || "Failed to process due recurring transactions");
+            throw err;
+        } finally {
+            setIsProcessingDue(false);
+        }
+    };
+
+    // In-App Notification Handlers
+    const fetchNotifications = useCallback(() => {
+        if (!isAuthenticated || !user) {
+            return;
+        }
+
+        getNotifications()
+            .then((response) => {
+                if (response.data?.success) {
+                    setNotifications(response.data.data || []);
+                    setUnreadCount(response.data.unreadCount || 0);
+                }
+            })
+            .catch((error) => {
+                if (error.response?.status === 401) {
+                    setNotifications([]);
+                    setUnreadCount(0);
+                }
+            });
+    }, [isAuthenticated, user]);
+
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            fetchNotifications();
+        }
+    }, [fetchNotifications, isAuthenticated, user, transactions, budgets, goals, recurringRules]);
+
+    const handleMarkNotificationRead = async (id) => {
+        try {
+            await markNotificationAsRead(id);
+            setNotifications((prev) =>
+                prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+            );
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (err) {
+            console.error("Failed to mark notification as read:", err);
+        }
+    };
+
+    const handleMarkAllNotificationsRead = async () => {
+        try {
+            await markAllNotificationsAsRead();
+            setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+            setUnreadCount(0);
+        } catch (err) {
+            console.error("Failed to mark all notifications as read:", err);
+        }
+    };
+
+    const handleDismissNotification = async (id) => {
+        try {
+            await dismissNotification(id);
+            const target = notifications.find((n) => n._id === id);
+            setNotifications((prev) => prev.filter((n) => n._id !== id));
+            if (target && !target.isRead) {
+                setUnreadCount((prev) => Math.max(0, prev - 1));
+            }
+        } catch (err) {
+            console.error("Failed to dismiss notification:", err);
+        }
+    };
+
+    const getInitials = (name) => {
+        if (!name) return 'VT';
+        return name
+            .split(' ')
+            .map(n => n[0])
+            .filter(Boolean)
+            .join('')
+            .slice(0, 2)
+            .toUpperCase();
+    };
+
+    // Dynamic Header Info based on active route
     const getHeaderInfo = () => {
         switch (location.pathname) {
-            case '/transactions':
+            case "/":
+                return {
+                    title: "Dashboard",
+                    subtitle: "Track your income, monitor expenses, and maintain full financial control."
+                };
+            case "/transactions":
                 return {
                     title: "Transactions",
-                    subtitle: "View and manage all your income and expenses in one place."
+                    subtitle: "View, filter, sort, and manage all your historical income and expense records."
                 };
-            case '/analytics':
+            case "/budgets":
                 return {
-                    title: "Financial Analytics & Insights",
-                    subtitle: "Real-time cash flow analysis and spending distribution based on your database records."
+                    title: "Budgets",
+                    subtitle: "Set monthly spending limits by category, track current utilization, and keep expenses on target."
                 };
-            case '/settings':
+            case "/goals":
+                return {
+                    title: "Savings Goals",
+                    subtitle: "Set financial targets, allocate funds, and track your milestone achievements."
+                };
+            case "/recurring":
+                return {
+                    title: "Recurring Transactions",
+                    subtitle: "Manage recurring bills, subscriptions, and scheduled income streams with automated tracking."
+                };
+            case "/analytics":
+                return {
+                    title: "Analytics",
+                    subtitle: "Deep-dive into spending trends, monthly cash flows, and category distributions."
+                };
+            case "/reports":
+                return {
+                    title: "Financial Reports",
+                    subtitle: "Analyze trends, export transaction summaries, and evaluate financial performance over custom periods."
+                };
+            case "/settings":
                 return {
                     title: "Settings",
-                    subtitle: "Manage preferences, regional formatting, and configurations."
+                    subtitle: "Configure your currency preferences, brand theme colors, and view options."
                 };
             default:
                 return {
@@ -232,6 +650,12 @@ const Layout = () => {
                         <div className="mobile-api-dot connected" title="API Connected" />
                     ) : (
                         <div className="mobile-api-dot disconnected" title={apiStatus} />
+                    )}
+
+                    {user && (
+                        <div className="user-pill-avatar" style={{ width: 26, height: 26, fontSize: '0.7rem' }}>
+                            {getInitials(user.name)}
+                        </div>
                     )}
 
                     <button
@@ -312,6 +736,40 @@ const Layout = () => {
                         </NavLink>
 
                         <NavLink
+                            to="/budgets"
+                            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                            onClick={() => setIsMobileNavOpen(false)}
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M16 8h-6a2 2 0 100 4h4a2 2 0 110 4H8M12 6v2m0 8v2" />
+                            </svg>
+                            <span>Budgets</span>
+                        </NavLink>
+
+                        <NavLink
+                            to="/goals"
+                            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                            onClick={() => setIsMobileNavOpen(false)}
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+                            </svg>
+                            <span>Savings Goals</span>
+                        </NavLink>
+
+                        <NavLink
+                            to="/recurring"
+                            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                            onClick={() => setIsMobileNavOpen(false)}
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16" />
+                            </svg>
+                            <span>Recurring</span>
+                        </NavLink>
+
+                        <NavLink
                             to="/analytics"
                             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                             onClick={() => setIsMobileNavOpen(false)}
@@ -320,6 +778,21 @@ const Layout = () => {
                                 <path d="M18 20V10M12 20V4M6 20v-6" />
                             </svg>
                             <span>Analytics</span>
+                        </NavLink>
+
+                        <NavLink
+                            to="/reports"
+                            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                            onClick={() => setIsMobileNavOpen(false)}
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="16" y1="13" x2="8" y2="13" />
+                                <line x1="16" y1="17" x2="8" y2="17" />
+                                <polyline points="10 9 9 9 8 9" />
+                            </svg>
+                            <span>Reports</span>
                         </NavLink>
 
                         <NavLink
@@ -337,11 +810,30 @@ const Layout = () => {
                 </div>
 
                 <div className="sidebar-user">
-                    <div className="user-avatar">EA</div>
-                    <div className="user-info">
-                        <span className="user-name">Emmanuel Alo</span>
-                        <span className="user-role">Developer Portfolio</span>
-                    </div>
+                    {user && (
+                        <div className="sidebar-auth-section">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div className="user-avatar">{getInitials(user.name)}</div>
+                                <div className="user-info">
+                                    <span className="user-name" title={user.name}>{user.name}</span>
+                                    <span className="user-role" title={user.email}>{user.email}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="sidebar-signout-btn"
+                                onClick={logout}
+                                aria-label="Sign out of account"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                                    <polyline points="16 17 21 12 16 7" />
+                                    <line x1="21" y1="12" x2="9" y2="12" />
+                                </svg>
+                                <span>Sign Out</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </aside>
 
@@ -368,17 +860,63 @@ const Layout = () => {
                         ) : (
                             <div className="api-badge api-disconnected" title={apiStatus}>
                                 <span className="api-dot"></span>
-                                <span>API Disconnected</span>
+                                <span>{apiStatus}</span>
                             </div>
                         )}
 
-                        <button type="button" className="notification-bell" aria-label="Notifications">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                                <path d="M13.73 21a2 2 0 01-3.46 0" />
-                            </svg>
-                            <span className="bell-badge"></span>
-                        </button>
+                        {user && (
+                            <div className="user-profile-menu">
+                                <div className="user-profile-pill" title={`Logged in as ${user.email}`}>
+                                    <div className="user-pill-avatar">{getInitials(user.name)}</div>
+                                    <span>{user.name.split(' ')[0]}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="btn-signout-subtle"
+                                    onClick={logout}
+                                    title="Sign Out"
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                                        <polyline points="16 17 21 12 16 7" />
+                                        <line x1="21" y1="12" x2="9" y2="12" />
+                                    </svg>
+                                    <span>Sign Out</span>
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="notification-bell-container">
+                            <button
+                                type="button"
+                                className={`notification-bell ${isNotificationOpen ? 'active' : ''}`}
+                                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+                                aria-haspopup="dialog"
+                                aria-expanded={isNotificationOpen}
+                                onClick={() => setIsNotificationOpen((prev) => !prev)}
+                                title="View Notifications"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                                    <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                </svg>
+                                {unreadCount > 0 && (
+                                    <span className="bell-badge" aria-hidden="true">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            <NotificationPopover
+                                isOpen={isNotificationOpen}
+                                onClose={() => setIsNotificationOpen(false)}
+                                notifications={notifications}
+                                unreadCount={unreadCount}
+                                onMarkRead={handleMarkNotificationRead}
+                                onMarkAllRead={handleMarkAllNotificationsRead}
+                                onDismiss={handleDismissNotification}
+                            />
+                        </div>
                     </div>
                 </header>
 
@@ -402,6 +940,8 @@ const Layout = () => {
                     </div>
                 )}
 
+
+
                 {/* Page Outlet: Renders active route */}
                 <Outlet
                     context={{
@@ -411,6 +951,9 @@ const Layout = () => {
                         totalIncome,
                         totalExpense,
                         balance,
+                        savingsRate,
+                        inflowOutflowRatio,
+                        averageExpense,
                         formatCurrency: formatCurrencyDisplay,
                         formatTxDate,
                         handleCreateTransaction,
@@ -427,10 +970,46 @@ const Layout = () => {
                         setCompactView,
                         showTime,
                         setShowTime,
-                        fetchTransactions
+                        fetchTransactions,
+                        budgets,
+                        isBudgetsLoading,
+                        fetchBudgets,
+                        handleCreateBudget,
+                        handleUpdateBudget,
+                        handleDeleteBudget,
+                        goals,
+                        isGoalsLoading,
+                        fetchGoals,
+                        handleCreateGoal,
+                        handleUpdateGoal,
+                        handleAdjustContribution,
+                        handleDeleteGoal,
+                        recurringRules,
+                        isRecurringLoading,
+                        fetchRecurring,
+                        handleCreateRecurring,
+                        handleUpdateRecurring,
+                        handleToggleRecurringStatus,
+                        handleDeleteRecurring,
+                        handleProcessDue,
+                        isProcessingDue,
+                        user,
+                        isAuthenticated,
+                        authLoading,
+                        logout,
+                        openLoginModal,
+                        openRegisterModal,
+                        notifications,
+                        unreadCount,
+                        fetchNotifications
                     }}
                 />
             </main>
+
+            {/* ==========================================================================
+                Global Authentication Modal
+                ========================================================================== */}
+            <AuthModal />
 
             {/* ==========================================================================
                 Global Add Transaction Modal (Triggered from Cazura Header)

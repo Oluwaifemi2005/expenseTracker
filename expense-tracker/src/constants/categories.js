@@ -39,3 +39,18 @@ export const CATEGORY_COLORS = {
     'Other': '#64748b'
 };
 
+export const DEFAULT_CATEGORY_COLOR = '#64748b';
+
+/**
+ * Returns the standardized hex color for a given category name,
+ * with safe fallback to DEFAULT_CATEGORY_COLOR for unknown or missing categories.
+ * 
+ * @param {string} category - Category name
+ * @returns {string} Hex color code
+ */
+export const getCategoryColor = (category) => {
+    if (!category || typeof category !== 'string') {
+        return DEFAULT_CATEGORY_COLOR;
+    }
+    return CATEGORY_COLORS[category.trim()] || DEFAULT_CATEGORY_COLOR;
+};
