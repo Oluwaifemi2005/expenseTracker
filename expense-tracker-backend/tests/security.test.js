@@ -347,4 +347,70 @@ describe('Security Verification & Regression Audit Test Suite', () => {
             }
         });
     });
+
+    describe('7. Cross-Origin Resource Sharing (CORS) & Production Policy', () => {
+        it('should permit production Vercel frontend with credentials and matching origin', async () => {
+            const vercelOrigin = 'https://expense-tracker-coral-one-95.vercel.app';
+            const res = await request
+                .get('/')
+                .set('Origin', vercelOrigin);
+
+            assert.equal(res.status, 200);
+            assert.equal(res.headers['access-control-allow-origin'], vercelOrigin);
+            assert.equal(res.headers['access-control-allow-credentials'], 'true');
+            assert.notEqual(res.headers['access-control-allow-origin'], '*', 'Must never use wildcard origin with credentials');
+        });
+
+        it('should allow dynamic Vercel preview deployments for the application', async () => {
+            const previewOrigin = 'https://expense-tracker-feat-insights-95.vercel.app';
+            const res = await request
+                .get('/')
+                .set('Origin', previewOrigin);
+
+            assert.equal(res.status, 200);
+            assert.equal(res.headers['access-control-allow-origin'], previewOrigin);
+            assert.equal(res.headers['access-control-allow-credentials'], 'true');
+        });
+
+        it('should permit local development origins', async () => {
+            const localOrigin = 'http://localhost:5173';
+            const res = await request
+                .get('/')
+                .set('Origin', localOrigin);
+
+            assert.equal(res.status, 200);
+            assert.equal(res.headers['access-control-allow-origin'], localOrigin);
+            assert.equal(res.headers['access-control-allow-credentials'], 'true');
+        });
+
+        it('should reject unauthorized origins without CORS headers', async () => {
+            const unauthorizedOrigin = 'https://malicious-attacker-domain.com';
+            const res = await request
+                .get('/')
+                .set('Origin', unauthorizedOrigin);
+
+            assert.equal(res.status, 200);
+            assert.equal(res.headers['access-control-allow-origin'], undefined);
+        });
+
+        it('should handle OPTIONS preflight requests for allowed origins', async () => {
+            const vercelOrigin = 'https://expense-tracker-coral-one-95.vercel.app';
+            const res = await request
+                .options('/api/auth/me')
+                .set('Origin', vercelOrigin)
+                .set('Access-Control-Request-Method', 'GET')
+                .set('Access-Control-Request-Headers', 'Content-Type, Authorization');
+
+            assert.ok(res.status === 200 || res.status === 204);
+            assert.equal(res.headers['access-control-allow-origin'], vercelOrigin);
+            assert.equal(res.headers['access-control-allow-credentials'], 'true');
+            assert.ok(res.headers['access-control-allow-methods']);
+        });
+
+        it('should configure Helmet with cross-origin resource policy for API usage', async () => {
+            const res = await request.get('/');
+            assert.equal(res.headers['cross-origin-resource-policy'], 'cross-origin');
+        });
+    });
 });
+

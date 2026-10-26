@@ -14,7 +14,7 @@ const getJwtExpiresIn = () => process.env.JWT_EXPIRES_IN || '24h';
  * Returns cookie options matching deployment environment.
  */
 const getCookieOptions = () => {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
     return {
         httpOnly: true,
         secure: isProduction,
