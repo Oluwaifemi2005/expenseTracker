@@ -1,5 +1,5 @@
-import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect, useRef } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import useAuth from './context/useAuth'
 import Layout from './Layout'
@@ -12,9 +12,24 @@ import AnalyticsView from './pages/AnalyticsView'
 import ReportsView from './pages/ReportsView'
 import SettingsView from './pages/SettingsView'
 import AuthScreen from './pages/AuthScreen'
+import LandingPage from './pages/LandingPage'
 
 function AppContent() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, sessionExpiredMessage } = useAuth();
+  const navigate = useNavigate();
+  const prevAuthRef = useRef(isAuthenticated);
+
+  // Handle transition from authenticated -> unauthenticated (logout vs session expiry)
+  useEffect(() => {
+    if (prevAuthRef.current && !isAuthenticated) {
+      if (sessionExpiredMessage) {
+        navigate('/login', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+    prevAuthRef.current = isAuthenticated;
+  }, [isAuthenticated, sessionExpiredMessage, navigate]);
 
   // 1. Session verification pending: Never expose protected financial data
   if (loading) {
@@ -30,9 +45,17 @@ function AppContent() {
     );
   }
 
-  // 2. Unauthenticated visitors: Show exclusively the login / register screen
+  // 2. Unauthenticated visitors: Public landing page at /, dedicated /login and /register,
+  // and redirect any protected routes to /login
   if (!isAuthenticated) {
-    return <AuthScreen />;
+    return (
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<AuthScreen initialMode="login" />} />
+        <Route path="/register" element={<AuthScreen initialMode="register" />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
   }
 
   // 3. Authenticated users: Open the dashboard and private routes
@@ -62,4 +85,5 @@ function App() {
 }
 
 export default App
+
 

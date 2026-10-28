@@ -153,7 +153,7 @@ const AuthModal = () => {
                     <p>
                         {authModalMode === 'login'
                             ? 'Enter your credentials to securely access your transactions and analytics.'
-                            : 'Sign up to manage your personal finances with isolated, end-to-end user privacy.'}
+                            : 'Sign up to manage your personal finances with a private account and user-specific data access.'}
                     </p>
                 </div>
 

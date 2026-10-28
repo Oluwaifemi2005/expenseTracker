@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import useAuth from '../context/useAuth';
 
-const AuthScreen = () => {
+const AuthScreen = ({ initialMode }) => {
     const navigate = useNavigate();
     const {
         authModalMode,
@@ -12,6 +12,13 @@ const AuthScreen = () => {
         login,
         register
     } = useAuth();
+
+    // Sync initial mode if passed via route (/login or /register)
+    useEffect(() => {
+        if (initialMode && (initialMode === 'login' || initialMode === 'register')) {
+            setAuthModalMode(initialMode);
+        }
+    }, [initialMode, setAuthModalMode]);
 
     const [formState, setFormState] = useState({
         name: '',
@@ -28,6 +35,7 @@ const AuthScreen = () => {
         setErrorMessage('');
         setFormState({ name: '', email: '', password: '' });
         setShowPassword(false);
+        navigate(`/${mode}`, { replace: true });
     };
 
     const handleSubmit = async (e) => {
@@ -87,6 +95,14 @@ const AuthScreen = () => {
     return (
         <div className="auth-screen-container">
             <div className="auth-screen-card">
+                <Link to="/" className="auth-back-home-link" aria-label="Return to Vaultex home page">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="19" y1="12" x2="5" y2="12" />
+                        <polyline points="12 19 5 12 12 5" />
+                    </svg>
+                    <span>Back to Home</span>
+                </Link>
+
                 {/* Brand Logo & Header */}
                 <div className="auth-screen-brand">
                     <div className="brand-icon auth-screen-brand-icon">V</div>
@@ -152,7 +168,7 @@ const AuthScreen = () => {
                     <p>
                         {authModalMode === 'login'
                             ? 'Please sign in to access your personal dashboard, transactions, and financial analytics.'
-                            : 'Register to unlock an isolated, end-to-end encrypted personal finance environment.'}
+                            : 'Register to unlock your personal finance dashboard with private user accounts and secure data protection.'}
                     </p>
                 </div>
 
