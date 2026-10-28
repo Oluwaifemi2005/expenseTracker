@@ -23,6 +23,12 @@ export const AuthProvider = ({ children }) => {
         }
         isHandlingExpiryRef.current = true;
 
+        try {
+            localStorage.removeItem('vaultex_token');
+        } catch {
+            // Ignore storage errors
+        }
+
         const message = customMessage || 'Your session has expired. Please log in again to continue.';
         setUser(null);
         setSessionExpiredMessage(message);
@@ -44,10 +50,16 @@ export const AuthProvider = ({ children }) => {
                     setUser(response.data.user);
                     setSessionExpiredMessage('');
                 } else {
+                    try {
+                        localStorage.removeItem('vaultex_token');
+                    } catch {}
                     setUser(null);
                 }
             })
             .catch((error) => {
+                try {
+                    localStorage.removeItem('vaultex_token');
+                } catch {}
                 const message = error.response?.data?.message;
                 // If the JWT expired on the backend, inform the user
                 if (error.response?.status === 401 && message && message.toLowerCase().includes('expired')) {
@@ -98,6 +110,11 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await loginUser({ email, password });
             if (response.data && response.data.user) {
+                if (response.data.token) {
+                    try {
+                        localStorage.setItem('vaultex_token', response.data.token);
+                    } catch {}
+                }
                 setUser(response.data.user);
                 setSessionExpiredMessage('');
                 setIsAuthModalOpen(false);
@@ -121,6 +138,11 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await registerUser({ name, email, password });
             if (response.data && response.data.user) {
+                if (response.data.token) {
+                    try {
+                        localStorage.setItem('vaultex_token', response.data.token);
+                    } catch {}
+                }
                 setUser(response.data.user);
                 setSessionExpiredMessage('');
                 setIsAuthModalOpen(false);
@@ -149,6 +171,9 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
+            try {
+                localStorage.removeItem('vaultex_token');
+            } catch {}
             setUser(null);
             setSessionExpiredMessage('');
             setAuthModalMode('login');

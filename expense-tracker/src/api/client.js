@@ -14,4 +14,20 @@ const apiClient = axios.create({
     }
 });
 
+// Attach Authorization Bearer token as fallback for environments where third-party cookies are blocked (e.g. mobile Safari/Chrome)
+apiClient.interceptors.request.use(
+    (config) => {
+        try {
+            const token = localStorage.getItem('vaultex_token');
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+        } catch {
+            // Gracefully ignore storage access errors (e.g. private browsing storage restrictions)
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 export default apiClient;
