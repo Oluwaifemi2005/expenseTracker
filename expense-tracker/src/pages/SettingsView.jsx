@@ -13,7 +13,6 @@ const SettingsView = () => {
         showTime,
         setShowTime,
         fetchTransactions,
-        transactions,
         user,
         isAuthenticated,
         logout,
@@ -96,21 +95,6 @@ const SettingsView = () => {
                         </button>
                     </div>
 
-                    <div className="sub-menu-section">
-                        <span className="sub-menu-heading">System</span>
-                        <button
-                            type="button"
-                            className={`sub-nav-item ${activeTab === 'system' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('system')}
-                        >
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="12" cy="12" r="10" />
-                                <line x1="12" y1="16" x2="12" y2="12" />
-                                <line x1="12" y1="8" x2="12.01" y2="8" />
-                            </svg>
-                            <span>About Architecture</span>
-                        </button>
-                    </div>
                 </aside>
 
                 {/* Right Settings Content Panel with Horizontal Row Dividers (Prime Pay Reference) */}
@@ -338,38 +322,6 @@ const SettingsView = () => {
                         </>
                     )}
 
-                    {activeTab === 'system' && (
-                        <div className="prime-settings-row">
-                            <div className="row-label-column">
-                                <h3 className="row-title">Architecture & System Details</h3>
-                                <p className="row-desc">Application stack and database status.</p>
-                            </div>
-                            <div className="row-control-column">
-                                <div className="system-info-table">
-                                    <div className="sys-row">
-                                        <span className="sys-label">Project</span>
-                                        <span className="sys-val">Vaultex Personal Finance</span>
-                                    </div>
-                                    <div className="sys-row">
-                                        <span className="sys-label">Frontend</span>
-                                        <span className="sys-val">React 19 + Vite 8 + React Router 7</span>
-                                    </div>
-                                    <div className="sys-row">
-                                        <span className="sys-label">Backend</span>
-                                        <span className="sys-val">Node.js + Express 5 REST API</span>
-                                    </div>
-                                    <div className="sys-row">
-                                        <span className="sys-label">Database</span>
-                                        <span className="sys-val">MongoDB Atlas ({transactions.length} records)</span>
-                                    </div>
-                                    <div className="sys-row">
-                                        <span className="sys-label">Developer</span>
-                                        <span className="sys-val">Emmanuel Alo</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 

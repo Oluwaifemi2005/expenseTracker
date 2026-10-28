@@ -646,12 +646,6 @@ const Layout = () => {
                 </div>
 
                 <div className="mobile-topbar-actions">
-                    {apiStatus === "Connected to Express API!" ? (
-                        <div className="mobile-api-dot connected" title="API Connected" />
-                    ) : (
-                        <div className="mobile-api-dot disconnected" title={apiStatus} />
-                    )}
-
                     {user && (
                         <div className="user-pill-avatar" style={{ width: 26, height: 26, fontSize: '0.7rem' }}>
                             {getInitials(user.name)}
@@ -847,23 +841,6 @@ const Layout = () => {
                     </div>
 
                     <div className="header-right">
-                        {apiStatus === "Connected to Express API!" ? (
-                            <div className="api-badge api-connected" title="Connected to Express API">
-                                <span className="api-dot"></span>
-                                <span>Live API Connected</span>
-                            </div>
-                        ) : apiStatus === "Connecting..." ? (
-                            <div className="api-badge api-connecting">
-                                <span className="api-dot"></span>
-                                <span>Connecting...</span>
-                            </div>
-                        ) : (
-                            <div className="api-badge api-disconnected" title={apiStatus}>
-                                <span className="api-dot"></span>
-                                <span>{apiStatus}</span>
-                            </div>
-                        )}
-
                         {user && (
                             <div className="user-profile-menu">
                                 <div className="user-profile-pill" title={`Logged in as ${user.email}`}>
@@ -946,6 +923,7 @@ const Layout = () => {
                 <Outlet
                     context={{
                         transactions,
+                        apiStatus,
                         income,
                         expense,
                         totalIncome,

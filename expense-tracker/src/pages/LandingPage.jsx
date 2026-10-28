@@ -3,21 +3,23 @@ import { Link } from 'react-router-dom';
 
 const LandingPage = () => {
     const [activeModal, setActiveModal] = useState(null); // 'privacy' | 'terms' | null
+    const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
-    // Close modal on Escape key
+    // Close modal or mobile navigation on Escape key
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape' && activeModal) {
-                setActiveModal(null);
+            if (e.key === 'Escape') {
+                if (activeModal) setActiveModal(null);
+                if (isMobileNavOpen) setIsMobileNavOpen(false);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeModal]);
+    }, [activeModal, isMobileNavOpen]);
 
-    // Prevent body scroll when modal is open
+    // Prevent body scroll when modal or mobile drawer is open
     useEffect(() => {
-        if (activeModal) {
+        if (activeModal || isMobileNavOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = '';
@@ -25,7 +27,7 @@ const LandingPage = () => {
         return () => {
             document.body.style.overflow = '';
         };
-    }, [activeModal]);
+    }, [activeModal, isMobileNavOpen]);
 
     return (
         <div className="landing-page">
@@ -38,12 +40,14 @@ const LandingPage = () => {
                         <span className="landing-brand-badge">Vault</span>
                     </Link>
 
+                    {/* Desktop Navigation */}
                     <nav className="landing-nav" aria-label="Main Navigation">
                         <a href="#features" className="landing-nav-link">Features</a>
                         <a href="#security" className="landing-nav-link">Security & Privacy</a>
                         <a href="#about" className="landing-nav-link">About</a>
                     </nav>
 
+                    {/* Auth Actions & Mobile Menu Toggle */}
                     <div className="landing-auth-actions">
                         <Link to="/login" className="btn btn-secondary landing-btn-signin">
                             Sign In
@@ -51,8 +55,75 @@ const LandingPage = () => {
                         <Link to="/register" className="btn btn-primary landing-btn-register">
                             Get Started
                         </Link>
+                        <button
+                            type="button"
+                            className="landing-mobile-menu-toggle"
+                            onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
+                            aria-label={isMobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+                            aria-expanded={isMobileNavOpen}
+                            aria-controls="landing-mobile-nav"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                {isMobileNavOpen ? (
+                                    <>
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                    </>
+                                ) : (
+                                    <>
+                                        <line x1="3" y1="12" x2="21" y2="12" />
+                                        <line x1="3" y1="6" x2="21" y2="6" />
+                                        <line x1="3" y1="18" x2="21" y2="18" />
+                                    </>
+                                )}
+                            </svg>
+                        </button>
                     </div>
                 </div>
+
+                {/* Accessible Mobile Drawer Navigation */}
+                {isMobileNavOpen && (
+                    <div id="landing-mobile-nav" className="landing-mobile-drawer" role="navigation" aria-label="Mobile Navigation">
+                        <div className="landing-mobile-drawer-inner">
+                            <a
+                                href="#features"
+                                className="landing-mobile-nav-link"
+                                onClick={() => setIsMobileNavOpen(false)}
+                            >
+                                Features
+                            </a>
+                            <a
+                                href="#security"
+                                className="landing-mobile-nav-link"
+                                onClick={() => setIsMobileNavOpen(false)}
+                            >
+                                Security & Privacy
+                            </a>
+                            <a
+                                href="#about"
+                                className="landing-mobile-nav-link"
+                                onClick={() => setIsMobileNavOpen(false)}
+                            >
+                                About
+                            </a>
+                            <div className="landing-mobile-divider" />
+                            <button
+                                type="button"
+                                className="landing-mobile-modal-btn"
+                                onClick={() => { setIsMobileNavOpen(false); setActiveModal('privacy'); }}
+                            >
+                                Privacy Policy
+                            </button>
+                            <button
+                                type="button"
+                                className="landing-mobile-modal-btn"
+                                onClick={() => { setIsMobileNavOpen(false); setActiveModal('terms'); }}
+                            >
+                                Terms of Service
+                            </button>
+                        </div>
+                    </div>
+                )}
             </header>
 
             {/* Hero Section */}
